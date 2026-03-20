@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Plus, Trash2, Copy, Check, LogOut, GripVertical, Eye, EyeOff, ChevronDown, Settings, Code, Palette, LayoutGrid, Zap, ExternalLink, X, FileText, BarChart3, ArrowLeft, Save, Type, Mail, Phone, Hash, AlignLeft, ChevronRight, Calendar, Link2, CheckSquare } from "lucide-react";
 
-const API_URL = "https://leadflow-api-production-a68b.up.railway.app";
+const API_URL = "https://leadflow-api-production-a68b.up.railway.app/api";
 
 // ============================================================
 // THEME
@@ -189,12 +189,11 @@ const Dash = ({ user, token, onLogout, onOpen }) => {
         method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           name: newName,
-          fields: [
+          steps: [{ id: "s1", title: "Step 1", fields: [
             { id: "f1", type: "text", label: "Full Name", placeholder: "Enter your name", required: true },
             { id: "f2", type: "email", label: "Email", placeholder: "you@email.com", required: true },
-          ],
-          styles: { theme: "dark", primaryColor: "#6c5ce7", borderRadius: 10, fontFamily: "Outfit", buttonText: "Submit", successMessage: "Thanks! We'll be in touch." },
-          ghl_config: {},
+          ]}],
+          theme: { mode: "dark", primaryColor: "#6c5ce7", borderRadius: 10, fontFamily: "Outfit", buttonText: "Submit", successMessage: "Thanks! We'll be in touch." },
         }),
       });
       if (r.ok) { setNewName(""); setShowNew(false); load(); }
@@ -266,25 +265,27 @@ const Dash = ({ user, token, onLogout, onOpen }) => {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 14 }}>
             {forms.map((f, i) => (
               <Crd key={f.id} className="fi" hov style={{ animationDelay: `${i * 0.04}s`, cursor: "pointer" }} onClick={() => onOpen(f)}>
+                {(() => { const flds = (f.steps || []).flatMap(s => s.fields || []); return (<>
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
                   <div>
                     <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 3 }}>{f.name}</h3>
                     <p style={{ fontSize: 11.5, color: T.txD }}>{new Date(f.created_at).toLocaleDateString()}</p>
                   </div>
                   <span style={{ padding: "2px 8px", borderRadius: 5, fontSize: 10.5, fontWeight: 600, background: `${T.pr}18`, color: T.pr }}>
-                    {(f.fields || []).length} fields
+                    {flds.length} fields
                   </span>
                 </div>
                 <div style={{ display: "flex", gap: 5, marginBottom: 14, flexWrap: "wrap" }}>
-                  {(f.fields || []).slice(0, 4).map((fl, j) => (
+                  {flds.slice(0, 4).map((fl, j) => (
                     <span key={j} style={{ padding: "2px 7px", borderRadius: 5, fontSize: 10.5, background: T.bgEl, color: T.txM }}>{fl.label || fl.type}</span>
                   ))}
-                  {(f.fields || []).length > 4 && <span style={{ padding: "2px 7px", borderRadius: 5, fontSize: 10.5, background: T.bgEl, color: T.txD }}>+{(f.fields || []).length - 4}</span>}
+                  {flds.length > 4 && <span style={{ padding: "2px 7px", borderRadius: 5, fontSize: 10.5, background: T.bgEl, color: T.txD }}>+{flds.length - 4}</span>}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <span style={{ fontSize: 11.5, color: T.txD, display: "flex", alignItems: "center", gap: 4 }}><BarChart3 size={11} /> {f.submissions_count || 0} leads</span>
                   <button onClick={e => { e.stopPropagation(); del(f.id); }} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", padding: 3 }}><Trash2 size={13} /></button>
                 </div>
+                </>); })()}
               </Crd>
             ))}
           </div>
@@ -298,14 +299,14 @@ const Dash = ({ user, token, onLogout, onOpen }) => {
 // FORM BUILDER
 // ============================================================
 const Builder = ({ form, token, onBack }) => {
-  const [fields, setFields] = useState(form.fields || []);
+  const [fields, setFields] = useState((form.steps || []).flatMap(s => s.fields || []));
   const [tab, setTab] = useState("fields");
   const [sel, setSel] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [sty, setSty] = useState(form.styles || { theme: "dark", primaryColor: "#6c5ce7", borderRadius: 10, fontFamily: "Outfit", buttonText: "Submit", successMessage: "Thanks! We'll be in touch." });
-  const [ghl, setGhl] = useState(form.ghl_config || { enabled: false, location_id: "", api_key: "", tag: "", field_mapping: {} });
+  const [sty, setSty] = useState(form.theme || { mode: "dark", primaryColor: "#6c5ce7", borderRadius: 10, fontFamily: "Outfit", buttonText: "Submit", successMessage: "Thanks! We'll be in touch." });
+  const [ghl, setGhl] = useState({ enabled: !!(form.ghl_key), location_id: form.ghl_location_id || "", api_key: form.ghl_key || "", tag: "", field_mapping: form.ghl_field_map || {} });
   const [dragI, setDragI] = useState(null);
 
   const tabs = [
@@ -331,7 +332,13 @@ const Builder = ({ form, token, onBack }) => {
     try {
       const r = await fetch(`${API_URL}/forms/${form.id}`, {
         method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ fields, styles: sty, ghl_config: ghl }),
+        body: JSON.stringify({ 
+          steps: [{ id: "s1", title: "Step 1", fields }], 
+          theme: sty, 
+          ghl_key: ghl.api_key || "",
+          ghl_location_id: ghl.location_id || "",
+          ghl_field_map: ghl.field_mapping || {},
+        }),
       });
       if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 2000); }
     } catch (e) { console.error(e); }
@@ -342,7 +349,7 @@ const Builder = ({ form, token, onBack }) => {
   const cpEmbed = () => { navigator.clipboard.writeText(embed); setCopied(true); setTimeout(() => setCopied(false), 2000); };
 
   const sf = fields.find(f => f.id === sel);
-  const isDark = sty.theme === "dark";
+  const isDark = (sty.mode || sty.theme || "dark") === "dark";
   const pc = sty.primaryColor || "#6c5ce7";
   const br = sty.borderRadius || 10;
   const ff = `'${sty.fontFamily || "Outfit"}',sans-serif`;
@@ -465,12 +472,12 @@ const Builder = ({ form, token, onBack }) => {
                   <label style={{ fontSize: 12.5, fontWeight: 500, color: T.txM, marginBottom: 5, display: "block" }}>Theme</label>
                   <div style={{ display: "flex", gap: 7 }}>
                     {["dark", "light"].map(t => (
-                      <button key={t} onClick={() => setSty({ ...sty, theme: t })} style={{
+                      <button key={t} onClick={() => setSty({ ...sty, mode: t })} style={{
                         flex: 1, padding: "9px 0", borderRadius: 7, cursor: "pointer", fontSize: 12.5,
                         fontFamily: "'Outfit',sans-serif", fontWeight: 600, transition: "all .2s",
-                        background: sty.theme === t ? T.prG : T.bgEl,
-                        border: `1px solid ${sty.theme === t ? T.pr : T.brd}`,
-                        color: sty.theme === t ? T.pr : T.txM,
+                        background: (sty.mode || "dark") === t ? T.prG : T.bgEl,
+                        border: `1px solid ${(sty.mode || "dark") === t ? T.pr : T.brd}`,
+                        color: (sty.mode || "dark") === t ? T.pr : T.txM,
                       }}>{t[0].toUpperCase() + t.slice(1)}</button>
                     ))}
                   </div>
