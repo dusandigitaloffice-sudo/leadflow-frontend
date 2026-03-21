@@ -452,7 +452,7 @@ const Builder = ({ form, token, onBack }) => {
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
   const [sty, setSty] = useState(form.theme || { mode: "dark", primaryColor: "#6c5ce7", borderRadius: 10, fontFamily: "Outfit", buttonText: "Submit", successMessage: "Thanks! We'll be in touch." });
-  const [ghl, setGhl] = useState({ enabled: !!(form.ghl_key), location_id: form.ghl_location_id || "", api_key: form.ghl_key || "", tag: "", field_mapping: form.ghl_field_map || {} });
+  const [ghl, setGhl] = useState({ enabled: !!(form.ghl_key), location_id: form.ghl_location_id || "", api_key: form.ghl_key || "", pipeline_id: form.ghl_pipeline_id || "", stage_id: form.ghl_stage_id || "", tag: form.ghl_tag || "", field_mapping: form.ghl_field_map || {} });
   const [dragI, setDragI] = useState(null);
   const [rules, setRules] = useState(form.rules || []);
   const [pixelId, setPixelId] = useState(form.pixel_id || "");
@@ -522,6 +522,8 @@ const Builder = ({ form, token, onBack }) => {
           theme: sty,
           ghl_key: ghl.api_key || "",
           ghl_location_id: ghl.location_id || "",
+          ghl_pipeline_id: ghl.pipeline_id || "",
+          ghl_stage_id: ghl.stage_id || "",
           ghl_field_map: ghl.field_mapping || {},
           rules,
           pixel_id: pixelId || "",
@@ -861,6 +863,8 @@ const Builder = ({ form, token, onBack }) => {
                     <Inp label="Location ID" placeholder="loc_xxxxxxxxx" value={ghl.location_id || ""} onChange={e => setGhl({ ...ghl, location_id: e.target.value })} />
                     <Inp label="API Key" type="password" placeholder="Your GHL API key" value={ghl.api_key || ""} onChange={e => setGhl({ ...ghl, api_key: e.target.value })} />
                     <Inp label="Tag (optional)" placeholder="e.g. webinar-lead" value={ghl.tag || ""} onChange={e => setGhl({ ...ghl, tag: e.target.value })} />
+                    <Inp label="Pipeline ID (optional)" placeholder="pipeline_xxxxxxxxx" value={ghl.pipeline_id || ""} onChange={e => setGhl({ ...ghl, pipeline_id: e.target.value })} />
+                    <Inp label="Stage ID (optional)" placeholder="stage_xxxxxxxxx" value={ghl.stage_id || ""} onChange={e => setGhl({ ...ghl, stage_id: e.target.value })} />
                     <div style={{ marginTop: 3 }}>
                       <p style={{ fontSize: 10.5, fontWeight: 600, color: T.txD, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>Field Mapping</p>
                       {fields.map(f => (
