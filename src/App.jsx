@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Plus, Trash2, Copy, Check, LogOut, GripVertical, Eye, EyeOff, ChevronDown, Settings, Code, Palette, LayoutGrid, Zap, ExternalLink, X, FileText, BarChart3, ArrowLeft, Save, Type, Mail, Phone, Hash, AlignLeft, ChevronRight, Calendar, Link2, CheckSquare } from "lucide-react";
+import { Plus, Trash2, Copy, Check, LogOut, GripVertical, Eye, EyeOff, ChevronDown, Settings, Code, Palette, LayoutGrid, Zap, ExternalLink, X, FileText, BarChart3, ArrowLeft, Save, Type, Mail, Phone, Hash, AlignLeft, ChevronRight, Calendar, Link2, CheckSquare, GitBranch, Globe, Send, Play, Pencil } from "lucide-react";
 
 const API_URL = "https://leadflow-api-production-a68b.up.railway.app/api";
 
@@ -31,6 +31,22 @@ const FTYPES = [
   { type: "url", label: "URL", icon: Link2, def: "Website URL" },
 ];
 
+const OPERATORS = [
+  { value: "equals", label: "equals" },
+  { value: "not_equals", label: "not equals" },
+  { value: "contains", label: "contains" },
+  { value: "is_empty", label: "is empty" },
+  { value: "is_not_empty", label: "is not empty" },
+];
+
+const ACTION_TYPES = [
+  { value: "show_field", label: "Show field" },
+  { value: "hide_field", label: "Hide field" },
+  { value: "add_tag", label: "Add GHL tag" },
+  { value: "set_pipeline", label: "Set GHL pipeline" },
+  { value: "redirect", label: "Redirect to URL" },
+];
+
 // ============================================================
 // SMALL COMPONENTS
 // ============================================================
@@ -49,12 +65,12 @@ const Logo = ({ big }) => (
       borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center",
       fontFamily: "'JetBrains Mono',monospace", fontWeight: 700,
       fontSize: big ? 19 : 14, color: "#fff", letterSpacing: -1,
-    }}>LF</div>
+    }}>FM</div>
     <span style={{
       fontSize: big ? 24 : 18, fontWeight: 700, letterSpacing: -0.5,
       background: `linear-gradient(135deg,${T.tx},${T.ac})`,
       WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-    }}>LeadFlow</span>
+    }}>Floumate</span>
   </div>
 );
 
@@ -296,10 +312,140 @@ const Dash = ({ user, token, onLogout, onOpen }) => {
 };
 
 // ============================================================
+// SUBMISSIONS PANEL
+// ============================================================
+const SubsPanel = ({ formId, formName, token, fields, onClose }) => {
+  const [subs, setSubs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("all"); // all, success, partial
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch(`${API_URL}/forms/${formId}/submissions`, { headers: { Authorization: `Bearer ${token}` } });
+        if (r.ok) { const d = await r.json(); setSubs(d.submissions || []); }
+      } catch (e) { console.error(e); }
+      finally { setLoading(false); }
+    })();
+  }, [formId, token]);
+
+  const completed = subs.filter(s => s.status !== 'partial');
+  const partial = subs.filter(s => s.status === 'partial');
+  const filtered = filter === "all" ? subs : filter === "success" ? completed : partial;
+
+  // Funnel calculation
+  const totalSessions = subs.length;
+  const totalCompleted = completed.length;
+  const convRate = totalSessions > 0 ? Math.round((totalCompleted / totalSessions) * 100) : 0;
+
+  // Source breakdown
+  const sources = {};
+  subs.forEach(s => {
+    const src = s.source?.platform || s.data?._source?.platform || "Direct";
+    sources[src] = (sources[src] || 0) + 1;
+  });
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", justifyContent: "flex-end" }} onClick={onClose}>
+      <div style={{ width: 560, maxWidth: "100%", height: "100%", background: T.bg, borderLeft: `1px solid ${T.brd}`, overflow: "auto", padding: 24 }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+          <div>
+            <h3 style={{ fontSize: 17, fontWeight: 700 }}>Submissions</h3>
+            <p style={{ fontSize: 12.5, color: T.txM }}>{formName}</p>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: T.txM, cursor: "pointer" }}><X size={18} /></button>
+        </div>
+
+        {loading ? <div style={{ textAlign: "center", padding: 40 }}><Spin /></div> : <>
+          {/* Stats */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 20 }}>
+            <div style={{ background: T.bgCard, border: `1px solid ${T.brd}`, borderRadius: 10, padding: 14, textAlign: "center" }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: T.pr }}>{totalCompleted}</div>
+              <div style={{ fontSize: 10.5, color: T.txM, fontWeight: 500 }}>COMPLETED</div>
+            </div>
+            <div style={{ background: T.bgCard, border: `1px solid ${T.brd}`, borderRadius: 10, padding: 14, textAlign: "center" }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: T.dn }}>{partial.length}</div>
+              <div style={{ fontSize: 10.5, color: T.txM, fontWeight: 500 }}>DROP-OFFS</div>
+            </div>
+            <div style={{ background: T.bgCard, border: `1px solid ${T.brd}`, borderRadius: 10, padding: 14, textAlign: "center" }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: T.ok }}>{convRate}%</div>
+              <div style={{ fontSize: 10.5, color: T.txM, fontWeight: 500 }}>CONV. RATE</div>
+            </div>
+          </div>
+
+          {/* Source Breakdown */}
+          {Object.keys(sources).length > 0 && (
+            <div style={{ marginBottom: 20 }}>
+              <p style={{ fontSize: 10.5, fontWeight: 600, color: T.txD, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>Sources</p>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {Object.entries(sources).sort((a, b) => b[1] - a[1]).map(([src, cnt]) => (
+                  <span key={src} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: T.bgEl, color: T.txM, border: `1px solid ${T.brd}` }}>
+                    {src}: {cnt}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Filter */}
+          <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+            {[["all", "All"], ["success", "Completed"], ["partial", "Partial"]].map(([v, l]) => (
+              <button key={v} onClick={() => setFilter(v)} style={{
+                padding: "5px 12px", borderRadius: 6, fontSize: 11.5, fontWeight: 600,
+                background: filter === v ? T.prG : T.bgEl, border: `1px solid ${filter === v ? T.pr : T.brd}`,
+                color: filter === v ? T.pr : T.txM, cursor: "pointer", fontFamily: "'Outfit',sans-serif",
+              }}>{l} ({v === "all" ? subs.length : v === "success" ? completed.length : partial.length})</button>
+            ))}
+          </div>
+
+          {/* Submission List */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {filtered.length === 0 ? (
+              <p style={{ textAlign: "center", padding: 30, color: T.txD, fontSize: 13 }}>No submissions yet</p>
+            ) : filtered.map(s => (
+              <div key={s.id} style={{ background: T.bgCard, border: `1px solid ${T.brd}`, borderRadius: 9, padding: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <span style={{
+                    padding: "2px 7px", borderRadius: 4, fontSize: 9.5, fontWeight: 700,
+                    background: s.status === 'partial' ? T.dnG : T.okG,
+                    color: s.status === 'partial' ? T.dn : T.ok,
+                  }}>{s.status === 'partial' ? `PARTIAL (step ${(s.step_reached || s.data?._step_reached || 0) + 1})` : 'COMPLETED'}</span>
+                  <span style={{ fontSize: 10.5, color: T.txD }}>{new Date(s.created_at).toLocaleString()}</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  {fields.slice(0, 5).map(f => {
+                    const val = s.data?.[f.id];
+                    if (val === undefined || val === '' || val === null) return null;
+                    return (
+                      <div key={f.id} style={{ display: "flex", gap: 6, fontSize: 11.5 }}>
+                        <span style={{ color: T.txD, minWidth: 70 }}>{f.label}:</span>
+                        <span style={{ color: T.txM }}>{String(val)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {(s.source?.platform || s.data?._source?.platform) && (
+                  <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}>
+                    <Globe size={10} style={{ color: T.ac }} />
+                    <span style={{ fontSize: 10, color: T.ac, fontWeight: 600 }}>{s.source?.platform || s.data?._source?.platform}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </>}
+      </div>
+    </div>
+  );
+};
+
+// ============================================================
 // FORM BUILDER
 // ============================================================
 const Builder = ({ form, token, onBack }) => {
-  const [fields, setFields] = useState((form.steps || []).flatMap(s => s.fields || []));
+  const initSteps = (form.steps && form.steps.length) ? form.steps : [{ id: "s1", title: "Step 1", fields: [] }];
+  const [steps, setSteps] = useState(initSteps);
+  const [activeStep, setActiveStep] = useState(0);
   const [tab, setTab] = useState("fields");
   const [sel, setSel] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -308,36 +454,78 @@ const Builder = ({ form, token, onBack }) => {
   const [sty, setSty] = useState(form.theme || { mode: "dark", primaryColor: "#6c5ce7", borderRadius: 10, fontFamily: "Outfit", buttonText: "Submit", successMessage: "Thanks! We'll be in touch." });
   const [ghl, setGhl] = useState({ enabled: !!(form.ghl_key), location_id: form.ghl_location_id || "", api_key: form.ghl_key || "", tag: "", field_mapping: form.ghl_field_map || {} });
   const [dragI, setDragI] = useState(null);
+  const [rules, setRules] = useState(form.rules || []);
+  const [pixelId, setPixelId] = useState(form.pixel_id || "");
+  const [webhookUrl, setWebhookUrl] = useState(form.webhook_url || "");
+  const [showSubs, setShowSubs] = useState(false);
+  const [previewMode, setPreviewMode] = useState(false); // false=static, true=live iframe
+  const [editingStepTitle, setEditingStepTitle] = useState(null);
+
+  // All fields across all steps (for logic/GHL mapping)
+  const fields = steps.flatMap(s => s.fields || []);
+  // Current step's fields
+  const curStep = steps[activeStep] || steps[0];
+  const curFields = curStep?.fields || [];
 
   const tabs = [
     { id: "fields", label: "Fields", icon: LayoutGrid },
     { id: "style", label: "Style", icon: Palette },
+    { id: "logic", label: "Logic", icon: GitBranch },
     { id: "ghl", label: "GHL", icon: Zap },
     { id: "embed", label: "Embed", icon: Code },
   ];
 
+  // Step management
+  const addStep = () => {
+    const ns = { id: `s_${Date.now()}`, title: `Step ${steps.length + 1}`, fields: [] };
+    setSteps([...steps, ns]);
+    setActiveStep(steps.length);
+  };
+  const rmStep = (i) => {
+    if (steps.length <= 1) return;
+    const ns = steps.filter((_, j) => j !== i);
+    setSteps(ns);
+    setActiveStep(Math.min(activeStep, ns.length - 1));
+  };
+  const renameStep = (i, title) => setSteps(steps.map((s, j) => j === i ? { ...s, title } : s));
+
+  // Field management (per active step)
+  const updateStepFields = (newFields) => setSteps(steps.map((s, i) => i === activeStep ? { ...s, fields: newFields } : s));
+
   const addField = (type) => {
     const c = FTYPES.find(f => f.type === type);
     const nf = { id: `f_${Date.now()}`, type, label: c?.def || "New Field", placeholder: "", required: false, options: type === "select" ? ["Option 1", "Option 2", "Option 3"] : undefined };
-    setFields([...fields, nf]);
+    updateStepFields([...curFields, nf]);
     setSel(nf.id);
   };
 
-  const upField = (id, u) => setFields(fields.map(f => f.id === id ? { ...f, ...u } : f));
-  const rmField = (id) => { setFields(fields.filter(f => f.id !== id)); if (sel === id) setSel(null); };
-  const mvField = (a, b) => { const u = [...fields]; const [m] = u.splice(a, 1); u.splice(b, 0, m); setFields(u); };
+  const upField = (id, u) => updateStepFields(curFields.map(f => f.id === id ? { ...f, ...u } : f));
+  const rmField = (id) => { updateStepFields(curFields.filter(f => f.id !== id)); if (sel === id) setSel(null); };
+  const mvField = (a, b) => { const u = [...curFields]; const [m] = u.splice(a, 1); u.splice(b, 0, m); updateStepFields(u); };
+
+  const addRule = () => {
+    setRules([...rules, { id: `r_${Date.now()}`, field_id: fields[0]?.id || "", operator: "equals", value: "", actions: [{ type: "show_field", target: "", value: "" }] }]);
+  };
+  const upRule = (id, u) => setRules(rules.map(r => r.id === id ? { ...r, ...u } : r));
+  const rmRule = (id) => setRules(rules.filter(r => r.id !== id));
+  const addAction = (ruleId) => setRules(rules.map(r => r.id === ruleId ? { ...r, actions: [...r.actions, { type: "show_field", target: "", value: "" }] } : r));
+  const upAction = (ruleId, ai, u) => setRules(rules.map(r => r.id === ruleId ? { ...r, actions: r.actions.map((a, i) => i === ai ? { ...a, ...u } : a) } : r));
+  const rmAction = (ruleId, ai) => setRules(rules.map(r => r.id === ruleId ? { ...r, actions: r.actions.filter((_, i) => i !== ai) } : r));
 
   const save = async () => {
     setSaving(true);
     try {
       const r = await fetch(`${API_URL}/forms/${form.id}`, {
         method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ 
-          steps: [{ id: "s1", title: "Step 1", fields }], 
-          theme: sty, 
+        body: JSON.stringify({
+          steps,
+          theme: sty,
           ghl_key: ghl.api_key || "",
           ghl_location_id: ghl.location_id || "",
           ghl_field_map: ghl.field_mapping || {},
+          rules,
+          pixel_id: pixelId || "",
+          webhook_url: webhookUrl || "",
         }),
       });
       if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 2000); }
@@ -345,7 +533,7 @@ const Builder = ({ form, token, onBack }) => {
     finally { setSaving(false); }
   };
 
-  const embed = `<div id="leadflow-${form.id}"></div>\n<script src="${API_URL}/embed.js" data-form-id="${form.id}"></script>`;
+  const embed = `<div data-floumate-id="${form.id}"></div>\n<script src="${API_URL}/embed.js"></script>`;
   const cpEmbed = () => { navigator.clipboard.writeText(embed); setCopied(true); setTimeout(() => setCopied(false), 2000); };
 
   const sf = fields.find(f => f.id === sel);
@@ -370,11 +558,18 @@ const Builder = ({ form, token, onBack }) => {
           <span style={{ fontWeight: 600, fontSize: 14.5 }}>{form.name}</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+          <Btn v={previewMode ? "pr" : "gh"} sm onClick={() => setPreviewMode(!previewMode)}>
+            {previewMode ? <><Pencil size={13} /> Edit</> : <><Play size={13} /> Test</>}
+          </Btn>
+          <Btn v="gh" sm onClick={() => setShowSubs(true)}><BarChart3 size={13} /> Submissions</Btn>
           <Btn sm onClick={save} dis={saving}>
             {saving ? <Spin s={13} /> : saved ? <><Check size={13} /> Saved</> : <><Save size={13} /> Save</>}
           </Btn>
         </div>
       </nav>
+
+      {/* Submissions Panel */}
+      {showSubs && <SubsPanel formId={form.id} formName={form.name} token={token} fields={fields} onClose={() => setShowSubs(false)} />}
 
       {/* Body */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
@@ -400,6 +595,35 @@ const Builder = ({ form, token, onBack }) => {
             {/* FIELDS */}
             {tab === "fields" && (
               <div className="fi">
+                {/* Step Tabs */}
+                <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 12, flexWrap: "wrap" }}>
+                  {steps.map((s, i) => (
+                    <div key={s.id} style={{ display: "flex", alignItems: "center", position: "relative" }}>
+                      {editingStepTitle === i ? (
+                        <input autoFocus value={s.title} onChange={e => renameStep(i, e.target.value)}
+                          onBlur={() => setEditingStepTitle(null)} onKeyDown={e => e.key === "Enter" && setEditingStepTitle(null)}
+                          style={{ width: 80, padding: "4px 6px", background: T.bgIn, border: `1px solid ${T.pr}`, borderRadius: 5, color: T.tx, fontSize: 10.5, fontFamily: "'Outfit',sans-serif", outline: "none" }} />
+                      ) : (
+                        <button onClick={() => setActiveStep(i)} onDoubleClick={() => setEditingStepTitle(i)} style={{
+                          padding: "5px 10px", borderRadius: 6, fontSize: 10.5, fontWeight: 600,
+                          background: activeStep === i ? T.prG : T.bgEl, border: `1px solid ${activeStep === i ? T.pr : T.brd}`,
+                          color: activeStep === i ? T.pr : T.txM, cursor: "pointer", fontFamily: "'Outfit',sans-serif",
+                        }}>
+                          {s.title}
+                          {steps.length > 1 && activeStep === i && (
+                            <span onClick={e => { e.stopPropagation(); rmStep(i); }} style={{ marginLeft: 4, color: T.txD, fontSize: 9 }}>×</span>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button onClick={addStep} style={{
+                    padding: "5px 8px", borderRadius: 6, fontSize: 10.5, fontWeight: 600,
+                    background: "none", border: `1px dashed ${T.brd}`, color: T.txD, cursor: "pointer", fontFamily: "'Outfit',sans-serif",
+                  }}>+</button>
+                </div>
+                {steps.length > 1 && <p style={{ fontSize: 9.5, color: T.txD, marginBottom: 10, marginTop: -4 }}>Double-click step name to rename</p>}
+
                 <p style={{ fontSize: 10.5, fontWeight: 600, color: T.txD, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>Add Field</p>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 5, marginBottom: 18 }}>
                   {FTYPES.map(ft => {
@@ -418,9 +642,9 @@ const Builder = ({ form, token, onBack }) => {
                   })}
                 </div>
 
-                <p style={{ fontSize: 10.5, fontWeight: 600, color: T.txD, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>Fields ({fields.length})</p>
+                <p style={{ fontSize: 10.5, fontWeight: 600, color: T.txD, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>Fields ({curFields.length})</p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                  {fields.map((f, i) => {
+                  {curFields.map((f, i) => {
                     const FI = FTYPES.find(ft => ft.type === f.type)?.icon || Type;
                     const isSel = sel === f.id;
                     return (
@@ -499,6 +723,8 @@ const Builder = ({ form, token, onBack }) => {
                 </div>
                 <Inp label="Button Text" value={sty.buttonText || "Submit"} onChange={e => setSty({ ...sty, buttonText: e.target.value })} />
                 <Inp label="Success Message" value={sty.successMessage || "Thanks!"} onChange={e => setSty({ ...sty, successMessage: e.target.value })} />
+                <Inp label="Redirect URL (optional)" placeholder="https://yoursite.com/thank-you" value={sty.redirectUrl || ""} onChange={e => setSty({ ...sty, redirectUrl: e.target.value })} />
+                {sty.redirectUrl && <p style={{ fontSize: 10.5, color: T.ok, marginTop: -6 }}>After submit, user will be redirected instead of seeing success message.</p>}
                 <div>
                   <label style={{ fontSize: 12.5, fontWeight: 500, color: T.txM, marginBottom: 5, display: "block" }}>Font</label>
                   <select value={sty.fontFamily || "Outfit"} onChange={e => setSty({ ...sty, fontFamily: e.target.value })}
@@ -509,9 +735,98 @@ const Builder = ({ form, token, onBack }) => {
               </div>
             )}
 
-            {/* GHL */}
+            {/* LOGIC (Conditional Rules) */}
+            {tab === "logic" && (
+              <div className="fi" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div style={{ padding: 12, background: "rgba(108,92,231,0.06)", borderRadius: 9, border: `1px solid rgba(108,92,231,0.12)` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 5 }}>
+                    <GitBranch size={13} style={{ color: T.pr }} />
+                    <span style={{ fontSize: 12.5, fontWeight: 600, color: T.pr }}>Conditional Logic</span>
+                  </div>
+                  <p style={{ fontSize: 11.5, color: T.txM, lineHeight: 1.5 }}>Show/hide fields or add GHL tags based on answers.</p>
+                </div>
+
+                {rules.map(rule => (
+                  <div key={rule.id} style={{ background: T.bg, border: `1px solid ${T.brd}`, borderRadius: 9, padding: 12 }}>
+                    {/* IF section */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: T.pr, textTransform: "uppercase", letterSpacing: 0.5 }}>IF</span>
+                      <button onClick={() => rmRule(rule.id)} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", padding: 2 }}><Trash2 size={11} /></button>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+                      <select value={rule.field_id} onChange={e => upRule(rule.id, { field_id: e.target.value })}
+                        style={{ width: "100%", padding: "7px 9px", background: T.bgIn, border: `1px solid ${T.brd}`, borderRadius: 6, color: T.tx, fontSize: 11.5, fontFamily: "'Outfit',sans-serif", outline: "none" }}>
+                        <option value="">-- Select field --</option>
+                        {fields.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+                      </select>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <select value={rule.operator} onChange={e => upRule(rule.id, { operator: e.target.value })}
+                          style={{ flex: 1, padding: "7px 9px", background: T.bgIn, border: `1px solid ${T.brd}`, borderRadius: 6, color: T.tx, fontSize: 11.5, fontFamily: "'Outfit',sans-serif", outline: "none" }}>
+                          {OPERATORS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                        {!["is_empty", "is_not_empty"].includes(rule.operator) && (
+                          <input value={rule.value || ""} onChange={e => upRule(rule.id, { value: e.target.value })} placeholder="value"
+                            style={{ flex: 1, padding: "7px 9px", background: T.bgIn, border: `1px solid ${T.brd}`, borderRadius: 6, color: T.tx, fontSize: 11.5, fontFamily: "'Outfit',sans-serif", outline: "none" }} />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* THEN section */}
+                    <span style={{ fontSize: 10, fontWeight: 700, color: T.ok, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8, display: "block" }}>THEN</span>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {(rule.actions || []).map((a, ai) => (
+                        <div key={ai} style={{ display: "flex", flexDirection: "column", gap: 5, padding: 8, background: T.bgEl, borderRadius: 6, border: `1px solid ${T.brd}` }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <select value={a.type} onChange={e => upAction(rule.id, ai, { type: e.target.value })}
+                              style={{ flex: 1, padding: "6px 8px", background: T.bgIn, border: `1px solid ${T.brd}`, borderRadius: 5, color: T.tx, fontSize: 11, fontFamily: "'Outfit',sans-serif", outline: "none" }}>
+                              {ACTION_TYPES.map(at => <option key={at.value} value={at.value}>{at.label}</option>)}
+                            </select>
+                            <button onClick={() => rmAction(rule.id, ai)} style={{ background: "none", border: "none", color: T.txD, cursor: "pointer", padding: 2, flexShrink: 0 }}><X size={11} /></button>
+                          </div>
+                          {(a.type === "show_field" || a.type === "hide_field") && (
+                            <select value={a.target || ""} onChange={e => upAction(rule.id, ai, { target: e.target.value })}
+                              style={{ width: "100%", padding: "6px 8px", background: T.bgIn, border: `1px solid ${T.brd}`, borderRadius: 5, color: T.tx, fontSize: 11, fontFamily: "'Outfit',sans-serif", outline: "none" }}>
+                              <option value="">-- Select field --</option>
+                              {fields.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+                            </select>
+                          )}
+                          {a.type === "add_tag" && (
+                            <input value={a.value || ""} onChange={e => upAction(rule.id, ai, { value: e.target.value })} placeholder="e.g. vip-lead"
+                              style={{ width: "100%", padding: "6px 8px", background: T.bgIn, border: `1px solid ${T.brd}`, borderRadius: 5, color: T.tx, fontSize: 11, fontFamily: "'Outfit',sans-serif", outline: "none" }} />
+                          )}
+                          {a.type === "redirect" && (
+                            <input value={a.value || ""} onChange={e => upAction(rule.id, ai, { value: e.target.value })} placeholder="https://yoursite.com/page"
+                              style={{ width: "100%", padding: "6px 8px", background: T.bgIn, border: `1px solid ${T.brd}`, borderRadius: 5, color: T.tx, fontSize: 11, fontFamily: "'Outfit',sans-serif", outline: "none" }} />
+                          )}
+                          {a.type === "set_pipeline" && (
+                            <div style={{ display: "flex", gap: 6 }}>
+                              <input value={a.pipeline_id || ""} onChange={e => upAction(rule.id, ai, { pipeline_id: e.target.value })} placeholder="Pipeline ID"
+                                style={{ flex: 1, padding: "6px 8px", background: T.bgIn, border: `1px solid ${T.brd}`, borderRadius: 5, color: T.tx, fontSize: 11, fontFamily: "'Outfit',sans-serif", outline: "none" }} />
+                              <input value={a.stage_id || ""} onChange={e => upAction(rule.id, ai, { stage_id: e.target.value })} placeholder="Stage ID"
+                                style={{ flex: 1, padding: "6px 8px", background: T.bgIn, border: `1px solid ${T.brd}`, borderRadius: 5, color: T.tx, fontSize: 11, fontFamily: "'Outfit',sans-serif", outline: "none" }} />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <button onClick={() => addAction(rule.id)} style={{
+                      fontSize: 10.5, color: T.pr, background: "none", border: "none", cursor: "pointer",
+                      fontFamily: "'Outfit',sans-serif", fontWeight: 600, padding: "6px 0 0",
+                    }}>+ Add Action</button>
+                  </div>
+                ))}
+
+                <Btn v="gh" sm onClick={addRule}><Plus size={12} /> Add Rule</Btn>
+                {rules.length === 0 && (
+                  <p style={{ textAlign: "center", color: T.txD, fontSize: 12 }}>No rules yet. Add a rule to create conditional logic.</p>
+                )}
+              </div>
+            )}
+
+            {/* GHL + INTEGRATIONS */}
             {tab === "ghl" && (
               <div className="fi" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* GHL Section */}
                 <div style={{ padding: 12, background: T.prG, borderRadius: 9, border: `1px solid rgba(108,92,231,0.15)` }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 5 }}>
                     <Zap size={13} style={{ color: T.pr }} />
@@ -550,6 +865,32 @@ const Builder = ({ form, token, onBack }) => {
                     </div>
                   </div>
                 )}
+
+                {/* Divider */}
+                <div style={{ height: 1, background: T.brd, margin: "4px 0" }} />
+
+                {/* Meta Pixel */}
+                <div style={{ padding: 12, background: "rgba(0,132,255,0.06)", borderRadius: 9, border: "1px solid rgba(0,132,255,0.12)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 5 }}>
+                    <Eye size={13} style={{ color: "#0084ff" }} />
+                    <span style={{ fontSize: 12.5, fontWeight: 600, color: "#0084ff" }}>Meta Pixel</span>
+                  </div>
+                  <p style={{ fontSize: 11.5, color: T.txM, lineHeight: 1.5 }}>Fire PageView on load + Lead event on submit.</p>
+                </div>
+                <Inp label="Pixel ID" placeholder="123456789012345" value={pixelId} onChange={e => setPixelId(e.target.value)} />
+
+                {/* Divider */}
+                <div style={{ height: 1, background: T.brd, margin: "4px 0" }} />
+
+                {/* Webhook */}
+                <div style={{ padding: 12, background: T.okG, borderRadius: 9, border: "1px solid rgba(0,210,160,0.15)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 5 }}>
+                    <Send size={13} style={{ color: T.ok }} />
+                    <span style={{ fontSize: 12.5, fontWeight: 600, color: T.ok }}>Webhook on Submit</span>
+                  </div>
+                  <p style={{ fontSize: 11.5, color: T.txM, lineHeight: 1.5 }}>Send data to Make, Zapier, or any URL on each submission.</p>
+                </div>
+                <Inp label="Webhook URL" placeholder="https://hook.make.com/..." value={webhookUrl} onChange={e => setWebhookUrl(e.target.value)} />
               </div>
             )}
 
@@ -589,57 +930,97 @@ const Builder = ({ form, token, onBack }) => {
           background: isDark ? "radial-gradient(ellipse at 50% 30%,rgba(108,92,231,0.03) 0%,transparent 70%)" : "radial-gradient(ellipse at 50% 30%,rgba(108,92,231,0.04) 0%,#f5f5fa 70%)",
         }}>
           <div style={{ width: "100%", maxWidth: 460 }}>
-            <p style={{ fontSize: 10.5, fontWeight: 600, color: T.txD, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12, textAlign: "center" }}>Live Preview</p>
-            <div style={{
-              background: isDark ? "#0e0e16" : "#ffffff",
-              border: `1px solid ${isDark ? "#1e1e2e" : "#e2e2e8"}`,
-              borderRadius: br + 4, padding: 28,
-              boxShadow: `0 20px 60px rgba(0,0,0,${isDark ? "0.4" : "0.06"})`,
-            }}>
-              <h3 style={{ fontSize: 19, fontWeight: 700, marginBottom: 3, color: isDark ? "#e4e4ed" : "#1a1a2e", fontFamily: ff }}>{form.name}</h3>
-              <p style={{ fontSize: 12.5, marginBottom: 22, color: isDark ? "#65657a" : "#888", fontFamily: ff }}>Fill in the details below</p>
+            <p style={{ fontSize: 10.5, fontWeight: 600, color: T.txD, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12, textAlign: "center" }}>
+              {previewMode ? "TEST MODE — Submit works!" : "LIVE PREVIEW"}
+            </p>
 
-              {fields.map(f => (
-                <div key={f.id} style={{ marginBottom: 14 }}>
-                  <label style={{ display: "block", fontSize: 12.5, fontWeight: 500, marginBottom: 5, color: isDark ? "#9a9ab0" : "#555", fontFamily: ff }}>
-                    {f.label} {f.required && <span style={{ color: pc }}>*</span>}
-                  </label>
-                  {f.type === "textarea" ? (
-                    <textarea rows={3} placeholder={f.placeholder || ""} readOnly style={{
-                      width: "100%", padding: "9px 12px", background: isDark ? "#12121a" : "#f8f8fc",
-                      border: `1px solid ${isDark ? "#1e1e2e" : "#e0e0e5"}`, borderRadius: br,
-                      color: isDark ? "#e4e4ed" : "#1a1a2e", fontSize: 13, fontFamily: ff, resize: "vertical", outline: "none",
-                    }} />
-                  ) : f.type === "select" ? (
-                    <select disabled style={{
-                      width: "100%", padding: "9px 12px", background: isDark ? "#12121a" : "#f8f8fc",
-                      border: `1px solid ${isDark ? "#1e1e2e" : "#e0e0e5"}`, borderRadius: br,
-                      color: isDark ? "#65657a" : "#888", fontSize: 13, fontFamily: ff,
-                    }}><option>{f.placeholder || "Select..."}</option></select>
-                  ) : f.type === "checkbox" ? (
-                    <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: isDark ? "#9a9ab0" : "#555", fontFamily: ff }}>
-                      <input type="checkbox" disabled style={{ accentColor: pc }} /> {f.placeholder || f.label}
+            {previewMode ? (
+              /* Live iframe preview — full working form from backend */
+              <div style={{ borderRadius: br + 4, overflow: "hidden", border: `1px solid ${isDark ? "#1e1e2e" : "#e2e2e8"}`, boxShadow: `0 20px 60px rgba(0,0,0,${isDark ? "0.4" : "0.06"})` }}>
+                <iframe
+                  key={saved ? "r" : "n"} /* reload on save */
+                  src={`${API_URL}/forms/${form.id}/view`}
+                  style={{ width: "100%", minHeight: 500, border: "none", display: "block" }}
+                  title="Form Preview"
+                />
+                <p style={{ textAlign: "center", padding: "8px 0", fontSize: 10, color: T.txD, background: isDark ? "#0e0e16" : "#fff" }}>
+                  Save first to see latest changes in test mode
+                </p>
+              </div>
+            ) : (
+              /* Static preview */
+              <div style={{
+                background: isDark ? "#0e0e16" : "#ffffff",
+                border: `1px solid ${isDark ? "#1e1e2e" : "#e2e2e8"}`,
+                borderRadius: br + 4, padding: 28,
+                boxShadow: `0 20px 60px rgba(0,0,0,${isDark ? "0.4" : "0.06"})`,
+              }}>
+                <h3 style={{ fontSize: 19, fontWeight: 700, marginBottom: 3, color: isDark ? "#e4e4ed" : "#1a1a2e", fontFamily: ff }}>{form.name}</h3>
+                {steps.length > 1 && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 5, margin: "12px 0 16px" }}>
+                    {steps.map((s, i) => (
+                      <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 5, flex: i < steps.length - 1 ? 1 : undefined }}>
+                        <div style={{ width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, background: i === activeStep ? pc : (isDark ? "#1a1a25" : "#eee"), color: i === activeStep ? "#fff" : (isDark ? "#65657a" : "#999") }}>{i + 1}</div>
+                        {i < steps.length - 1 && <div style={{ flex: 1, height: 2, background: isDark ? "#1e1e2e" : "#e2e2e8", borderRadius: 1 }} />}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {steps.length <= 1 && <p style={{ fontSize: 12.5, marginBottom: 22, color: isDark ? "#65657a" : "#888", fontFamily: ff }}>Fill in the details below</p>}
+
+                {curFields.map(f => (
+                  <div key={f.id} style={{ marginBottom: 14 }}>
+                    <label style={{ display: "block", fontSize: 12.5, fontWeight: 500, marginBottom: 5, color: isDark ? "#9a9ab0" : "#555", fontFamily: ff }}>
+                      {f.label} {f.required && <span style={{ color: pc }}>*</span>}
                     </label>
-                  ) : (
-                    <input type={f.type} placeholder={f.placeholder || ""} readOnly style={{
-                      width: "100%", padding: "9px 12px", background: isDark ? "#12121a" : "#f8f8fc",
-                      border: `1px solid ${isDark ? "#1e1e2e" : "#e0e0e5"}`, borderRadius: br,
-                      color: isDark ? "#e4e4ed" : "#1a1a2e", fontSize: 13, fontFamily: ff, outline: "none",
-                    }} />
-                  )}
-                </div>
-              ))}
+                    {f.type === "textarea" ? (
+                      <textarea rows={3} placeholder={f.placeholder || ""} readOnly style={{
+                        width: "100%", padding: "9px 12px", background: isDark ? "#12121a" : "#f8f8fc",
+                        border: `1px solid ${isDark ? "#1e1e2e" : "#e0e0e5"}`, borderRadius: br,
+                        color: isDark ? "#e4e4ed" : "#1a1a2e", fontSize: 13, fontFamily: ff, resize: "vertical", outline: "none",
+                      }} />
+                    ) : f.type === "select" ? (
+                      <select disabled style={{
+                        width: "100%", padding: "9px 12px", background: isDark ? "#12121a" : "#f8f8fc",
+                        border: `1px solid ${isDark ? "#1e1e2e" : "#e0e0e5"}`, borderRadius: br,
+                        color: isDark ? "#65657a" : "#888", fontSize: 13, fontFamily: ff,
+                      }}><option>{f.placeholder || "Select..."}</option></select>
+                    ) : f.type === "checkbox" ? (
+                      <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: isDark ? "#9a9ab0" : "#555", fontFamily: ff }}>
+                        <input type="checkbox" disabled style={{ accentColor: pc }} /> {f.placeholder || f.label}
+                      </label>
+                    ) : (
+                      <input type={f.type} placeholder={f.placeholder || ""} readOnly style={{
+                        width: "100%", padding: "9px 12px", background: isDark ? "#12121a" : "#f8f8fc",
+                        border: `1px solid ${isDark ? "#1e1e2e" : "#e0e0e5"}`, borderRadius: br,
+                        color: isDark ? "#e4e4ed" : "#1a1a2e", fontSize: 13, fontFamily: ff, outline: "none",
+                      }} />
+                    )}
+                  </div>
+                ))}
 
-              <button style={{
-                width: "100%", padding: "11px 0", marginTop: 6,
-                background: pc, color: "#fff", border: "none", borderRadius: br,
-                fontSize: 14.5, fontWeight: 600, cursor: "pointer", fontFamily: ff,
-              }}>{sty.buttonText || "Submit"}</button>
+                {steps.length > 1 ? (
+                  <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                    {activeStep > 0 && <button style={{ flex: 1, padding: "11px 0", background: isDark ? "#1a1a25" : "#eee", color: isDark ? "#9a9ab0" : "#555", border: "none", borderRadius: br, fontSize: 13.5, fontWeight: 600, cursor: "pointer", fontFamily: ff }} onClick={() => setActiveStep(activeStep - 1)}>Back</button>}
+                    {activeStep < steps.length - 1 ? (
+                      <button style={{ flex: 1, padding: "11px 0", background: pc, color: "#fff", border: "none", borderRadius: br, fontSize: 14.5, fontWeight: 600, cursor: "pointer", fontFamily: ff }} onClick={() => setActiveStep(activeStep + 1)}>Next</button>
+                    ) : (
+                      <button style={{ flex: 1, padding: "11px 0", background: pc, color: "#fff", border: "none", borderRadius: br, fontSize: 14.5, fontWeight: 600, cursor: "pointer", fontFamily: ff }}>{sty.buttonText || "Submit"}</button>
+                    )}
+                  </div>
+                ) : (
+                  <button style={{
+                    width: "100%", padding: "11px 0", marginTop: 6,
+                    background: pc, color: "#fff", border: "none", borderRadius: br,
+                    fontSize: 14.5, fontWeight: 600, cursor: "pointer", fontFamily: ff,
+                  }}>{sty.buttonText || "Submit"}</button>
+                )}
 
-              <p style={{ textAlign: "center", marginTop: 14, fontSize: 10.5, color: isDark ? "#3e3e52" : "#bbb" }}>
-                Powered by <span style={{ color: pc, fontWeight: 600 }}>LeadFlow</span>
-              </p>
-            </div>
+                <p style={{ textAlign: "center", marginTop: 14, fontSize: 10.5, color: isDark ? "#3e3e52" : "#bbb" }}>
+                  Powered by <span style={{ color: pc, fontWeight: 600 }}>Floumate</span>
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
