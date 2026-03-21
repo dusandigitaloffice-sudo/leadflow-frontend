@@ -722,9 +722,27 @@ const Builder = ({ form, token, onBack }) => {
                   <span style={{ fontSize: 11.5, color: T.txD }}>{br}px</span>
                 </div>
                 <Inp label="Button Text" value={sty.buttonText || "Submit"} onChange={e => setSty({ ...sty, buttonText: e.target.value })} />
-                <Inp label="Success Message" value={sty.successMessage || "Thanks!"} onChange={e => setSty({ ...sty, successMessage: e.target.value })} />
-                <Inp label="Redirect URL (optional)" placeholder="https://yoursite.com/thank-you" value={sty.redirectUrl || ""} onChange={e => setSty({ ...sty, redirectUrl: e.target.value })} />
-                {sty.redirectUrl && <p style={{ fontSize: 10.5, color: T.ok, marginTop: -6 }}>After submit, user will be redirected instead of seeing success message.</p>}
+                {/* After Submit Behavior */}
+                <div>
+                  <label style={{ fontSize: 12.5, fontWeight: 500, color: T.txM, marginBottom: 5, display: "block" }}>After Submit</label>
+                  <div style={{ display: "flex", gap: 7 }}>
+                    {[["message", "Thank You Page"], ["redirect", "Redirect"]].map(([v, l]) => (
+                      <button key={v} onClick={() => setSty({ ...sty, afterSubmit: v })} style={{
+                        flex: 1, padding: "9px 0", borderRadius: 7, cursor: "pointer", fontSize: 12.5,
+                        fontFamily: "'Outfit',sans-serif", fontWeight: 600, transition: "all .2s",
+                        background: (sty.afterSubmit || "message") === v ? T.prG : T.bgEl,
+                        border: `1px solid ${(sty.afterSubmit || "message") === v ? T.pr : T.brd}`,
+                        color: (sty.afterSubmit || "message") === v ? T.pr : T.txM,
+                      }}>{l}</button>
+                    ))}
+                  </div>
+                </div>
+                {(sty.afterSubmit || "message") === "message" && (
+                  <Inp label="Success Message" value={sty.successMessage || "Thanks!"} onChange={e => setSty({ ...sty, successMessage: e.target.value })} />
+                )}
+                {sty.afterSubmit === "redirect" && (
+                  <Inp label="Redirect URL" placeholder="https://yoursite.com/thank-you" value={sty.redirectUrl || ""} onChange={e => setSty({ ...sty, redirectUrl: e.target.value })} />
+                )}
                 <div>
                   <label style={{ fontSize: 12.5, fontWeight: 500, color: T.txM, marginBottom: 5, display: "block" }}>Font</label>
                   <select value={sty.fontFamily || "Outfit"} onChange={e => setSty({ ...sty, fontFamily: e.target.value })}
